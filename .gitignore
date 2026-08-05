@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+GameData/.gitkeep
+GameData/saved.json
+
 # C extensions
 *.so
 

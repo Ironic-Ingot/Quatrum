@@ -115,13 +115,13 @@ class UI:
 
 
 class Piece:
-    def __init__(self, shape: list, color, x, y):
+    def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
         self.shape = shape
         self.color = color
         self.x = x
         self.y = y
-        self.landed = False
-        self.hard_drop = False
+        self.landed = landed
+        self.hard_drop = hard_drop
     
     def rotate(self, grid, amount):
         if amount > 0:
@@ -170,13 +170,22 @@ class Piece:
                 elif cell and grid[y_pos + y + y_offset][x_pos + x + x_offset]:
                     return False
         return True
-    
+
     def draw(self, size, screen, land_y=None, alpha=255):
         for y, rows in enumerate(self.shape):
             for x, cell in enumerate(rows):
                 if cell:
                     draw_block(screen, self.color, ((x+self.x)*size + size, (y+(self.y if land_y is None else land_y))*size + size, size, size), alpha)
 
+    def to_dict(self):
+        return {
+            "shape": self.shape,
+            "color": self.color,
+            "x": self.x,
+            "y": self.y,
+            "landed": self.landed,
+            "hard_drop": self.hard_drop,
+        }
 class Game:
     def __init__(self):
         pygame.init()
@@ -263,6 +272,7 @@ class Game:
             if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
                 self.grid = [[0 for column in range(10)] for row in range(20)]
                 self.cleared_lines = 0
+                self.score = 0
             self.pieces[0].x = 4
             self.pieces[0].y = 0
         
@@ -270,7 +280,7 @@ class Game:
             
             if self.score > self.high_score:
                 self.high_score = self.score
-                self.save() # only saves when a piece is dropped and it increases high score
+            self.save()
             
 
 
@@ -320,16 +330,24 @@ class Game:
     def save(self):
         with open(BASE_DIR / 'GameData/saved.json', "w") as file:
             self.save_data = {
-                "high_score": self.high_score
+                "high_score": self.high_score,
+                "score": self.score,
+                "cleared_lines": self.cleared_lines,
+                "grid": self.grid,
+                "pieces": [piece.to_dict() for piece in self.pieces]
             }
             json.dump(self.save_data, file, indent=4)
         
     def load(self):
         try:
             with open(BASE_DIR / 'GameData/saved.json', "r") as file:
-                self.save_data = json.load(file)
-                self.high_score = self.save_data.get('high_score') if self.save_data.get('high_score') else 0
-        except:
+                self.save_data: dict = json.load(file)
+                self.high_score = self.save_data.get('high_score', 0)
+                self.score = self.save_data.get('score', 0)
+                self.cleared_lines = self.save_data.get('cleared_lines', 0)
+                self.grid = self.save_data.get('grid', self.grid)
+                self.pieces = [Piece(**piece) for piece in self.save_data.get('pieces', [])] or self.pieces
+        except (FileNotFoundError, json.JSONDecodeError):
             self.save()
             
 
@@ -338,3 +356,5 @@ class Game:
 
 game = Game()
 game.run()
+
+# TODO r to restart
