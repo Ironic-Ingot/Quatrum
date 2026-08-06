@@ -1,6 +1,7 @@
 import pygame
 import random
 import json
+from user_interface import UI
 from pathlib import Path
 
 WIDTH = 800
@@ -89,7 +90,9 @@ def draw_block(screen, color, rect, alpha=255):
     block.set_alpha(alpha)
     screen.blit(block, (x, y))
 
-class UI:
+
+
+class UIold:
     def __init__(self):
         self.font = pygame.font.Font(None, 80)
         
@@ -112,7 +115,6 @@ class UI:
         text = f'HiScore\n[ {high_score} ]'
         text_surf = self.font.render(text, True, [220 for _ in range(3)])
         screen.blit(text_surf, (550, 750))
-
 
 class Piece:
     def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
@@ -186,6 +188,7 @@ class Piece:
             "landed": self.landed,
             "hard_drop": self.hard_drop,
         }
+
 class Game:
     def __init__(self):
         pygame.init()
@@ -207,10 +210,15 @@ class Game:
         self.bag = list(PIECES)
         random.shuffle(self.bag)
         self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
+        # self.uiold = UIold()
         self.ui = UI()
+        self.lines_label = self.ui.create_label((550, 550), f'Lines\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
+        self.score_label = self.ui.create_label((550, 350), f'Score\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
+        self.high_score_label = self.ui.create_label((550, 750), f'HiScore\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
         
         self.load()
 
+        self.update_labels()
 
 
     def run(self):
@@ -247,6 +255,9 @@ class Game:
                                 
 
     def update(self, dt):
+        # mouse_buttons = pygame.mouse.get_pressed()
+        # mouse_pos = pygame.mouse.get_pos()
+        # self.ui.update(mouse_buttons, mouse_pos)
         if self.fall_timer <= 0:
             self.pieces[0].fall(self.grid)
             self.fall_timer = self.default_fall_timer
@@ -281,8 +292,13 @@ class Game:
             if self.score > self.high_score:
                 self.high_score = self.score
             self.save()
+            self.update_labels()
             
-
+            
+    def update_labels(self):
+        self.lines_label.update_text(f'Lines\n[ {self.cleared_lines} ]')
+        self.score_label.update_text(f'Score\n[ {self.score} ]')
+        self.high_score_label.update_text(f'HiScore\n[ {self.high_score} ]')
 
     def draw(self):
         self.screen.fill("black")
@@ -290,7 +306,8 @@ class Game:
         for piece in self.pieces:
             piece.draw(self.cell_size, self.screen)
         self.draw_grid(self.grid, self.cell_size, self.screen)
-        self.ui.draw(self.screen, self.cleared_lines, self.score, self.high_score)
+        # self.uiold.draw(self.screen, self.cleared_lines, self.score, self.high_score)
+        self.ui.draw(self.screen)
         pygame.display.flip()
             
     def draw_grid(self, grid, size, screen):
