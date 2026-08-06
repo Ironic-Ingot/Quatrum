@@ -1,7 +1,7 @@
 import pygame
 import random
 import json
-from user_interface import UI
+from gamelib.ui import UI
 from pathlib import Path
 
 WIDTH = 800
@@ -212,9 +212,10 @@ class Game:
         self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
         # self.uiold = UIold()
         self.ui = UI()
-        self.lines_label = self.ui.create_label((550, 550), f'Lines\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
-        self.score_label = self.ui.create_label((550, 350), f'Score\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
-        self.high_score_label = self.ui.create_label((550, 750), f'HiScore\n[   ]', 70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
+        default_button_args = (70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
+        self.lines_label = self.ui.create_label((550, 550), f'Lines\n[   ]', *default_button_args)
+        self.score_label = self.ui.create_label((550, 350), f'Score\n[   ]', *default_button_args)
+        self.high_score_label = self.ui.create_label((550, 750), f'HiScore\n[   ]', *default_button_args)
         
         self.load()
 
@@ -270,7 +271,9 @@ class Game:
                 self.cleared_lines += 1
                 self.grid.pop(y)
                 self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
-        self.score += [0, 100, 300, 500, 800][cleared_lines_now]
+        if cleared_lines_now != 0:
+            self.score += [0, 100, 300, 500, 800][cleared_lines_now]
+            self.update_labels()
         
         if self.pieces[0].landed:
             for y, rows in enumerate(self.pieces[0].shape):
