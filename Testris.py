@@ -90,32 +90,6 @@ def draw_block(screen, color, rect, alpha=255):
     block.set_alpha(alpha)
     screen.blit(block, (x, y))
 
-
-
-class UIold:
-    def __init__(self):
-        self.font = pygame.font.Font(None, 80)
-        
-    def draw(self, screen, lines, score, high_score):
-        self.draw_lines(screen, lines)
-        self.draw_score(screen, score)
-        self.draw_high_score(screen, high_score)
-    
-    def draw_lines(self, screen, lines):
-        text = f'Lines\n[ {lines} ]'
-        text_surf = self.font.render(text, True, [220 for _ in range(3)])
-        screen.blit(text_surf, (550, 550))
-    
-    def draw_score(self, screen, score):
-        text = f'Score\n[ {score} ]'
-        text_surf = self.font.render(text, True, [220 for _ in range(3)])
-        screen.blit(text_surf, (550, 350))
-        
-    def draw_high_score(self, screen, high_score):
-        text = f'HiScore\n[ {high_score} ]'
-        text_surf = self.font.render(text, True, [220 for _ in range(3)])
-        screen.blit(text_surf, (550, 750))
-
 class Piece:
     def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
         self.shape = shape
@@ -210,17 +184,21 @@ class Game:
         self.bag = list(PIECES)
         random.shuffle(self.bag)
         self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
-        # self.uiold = UIold()
+        self.scene = 'playing'
+        self.pause_ui = UI()
         self.ui = UI()
-        default_button_args = (70, (200, 200, 200), True, 10, (0, 0), (100, 100, 100))
-        self.lines_label = self.ui.create_label((550, 550), f'Lines\n[   ]', *default_button_args)
-        self.score_label = self.ui.create_label((550, 350), f'Score\n[   ]', *default_button_args)
-        self.high_score_label = self.ui.create_label((550, 750), f'HiScore\n[   ]', *default_button_args)
+        default_label_args = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30))
+        self.lines_label = self.ui.create_label((530, 550), f'Lines\n[   ]', *default_label_args)
+        self.score_label = self.ui.create_label((530, 350), f'Score\n[   ]', *default_label_args)
+        self.high_score_label = self.ui.create_label((530, 750), f'HiScore\n[   ]', *default_label_args)
+        self.continue_button = self.pause_ui.create_button(lambda: self.change_scene('playing'), (WIDTH/2, HEIGHT/2), 'Continue', *default_label_args) # i know doesnt perfectly center
         
         self.load()
 
         self.update_labels()
 
+    def change_scene(self, scene: str):
+        self.scene = scene
 
     def run(self):
         while self.running:
@@ -250,52 +228,57 @@ class Game:
                     self.pieces[0].rotate(self.grid, 1)
                 if event.key == pygame.K_LEFT:
                     self.pieces[0].rotate(self.grid, -1)
+                if event.key == pygame.K_p:
+                    self.change_scene('paused')
+                
         keys = pygame.key.get_pressed()
         if keys[pygame.K_s]:
             self.fall_timer = min(self.fall_timer, 0.03)
                                 
 
     def update(self, dt):
-        # mouse_buttons = pygame.mouse.get_pressed()
-        # mouse_pos = pygame.mouse.get_pos()
-        # self.ui.update(mouse_buttons, mouse_pos)
-        if self.fall_timer <= 0:
-            self.pieces[0].fall(self.grid)
-            self.fall_timer = self.default_fall_timer
-        self.fall_timer -= dt
-        
-        cleared_lines_now = 0
-        for y in range(len(self.grid)):
-            if all(self.grid[y]):
-                cleared_lines_now += 1
-                self.cleared_lines += 1
-                self.grid.pop(y)
-                self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
-        if cleared_lines_now != 0:
-            self.score += [0, 100, 300, 500, 800][cleared_lines_now]
-            self.update_labels()
-        
-        if self.pieces[0].landed:
-            for y, rows in enumerate(self.pieces[0].shape):
-                for x, cell in enumerate(rows):
-                    if cell:
-                        self.grid[self.pieces[0].y + y][self.pieces[0].x + x] = self.pieces[0].color
-                        self.score += 1 + self.pieces[0].hard_drop
-            self.pieces.pop(0)
+        if self.scene == 'paused':
+            mouse_buttons = pygame.mouse.get_pressed()
+            mouse_pos = pygame.mouse.get_pos()
+            self.pause_ui.update(mouse_buttons, mouse_pos)
+        if self.scene == 'playing':
+            if self.fall_timer <= 0:
+                self.pieces[0].fall(self.grid)
+                self.fall_timer = self.default_fall_timer
+            self.fall_timer -= dt
             
-            if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
-                self.grid = [[0 for column in range(10)] for row in range(20)]
-                self.cleared_lines = 0
-                self.score = 0
-            self.pieces[0].x = 4
-            self.pieces[0].y = 0
-        
-            self.pieces.append(self.create_piece(12, 2))
+            cleared_lines_now = 0
+            for y in range(len(self.grid)):
+                if all(self.grid[y]):
+                    cleared_lines_now += 1
+                    self.cleared_lines += 1
+                    self.grid.pop(y)
+                    self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
+            if cleared_lines_now != 0:
+                self.score += [0, 100, 300, 500, 800][cleared_lines_now]
+                self.update_labels()
             
-            if self.score > self.high_score:
-                self.high_score = self.score
-            self.save()
-            self.update_labels()
+            if self.pieces[0].landed:
+                for y, rows in enumerate(self.pieces[0].shape):
+                    for x, cell in enumerate(rows):
+                        if cell:
+                            self.grid[self.pieces[0].y + y][self.pieces[0].x + x] = self.pieces[0].color
+                            self.score += 1 + self.pieces[0].hard_drop
+                self.pieces.pop(0)
+                
+                if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
+                    self.grid = [[0 for column in range(10)] for row in range(20)]
+                    self.cleared_lines = 0
+                    self.score = 0
+                self.pieces[0].x = 4
+                self.pieces[0].y = 0
+            
+                self.pieces.append(self.create_piece(12, 2))
+                
+                if self.score > self.high_score:
+                    self.high_score = self.score
+                self.save()
+                self.update_labels()
             
             
     def update_labels(self):
@@ -309,8 +292,9 @@ class Game:
         for piece in self.pieces:
             piece.draw(self.cell_size, self.screen)
         self.draw_grid(self.grid, self.cell_size, self.screen)
-        # self.uiold.draw(self.screen, self.cleared_lines, self.score, self.high_score)
         self.ui.draw(self.screen)
+        if self.scene == 'paused':
+            self.pause_ui.draw(self.screen)
         pygame.display.flip()
             
     def draw_grid(self, grid, size, screen):
