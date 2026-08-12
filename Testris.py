@@ -2,6 +2,7 @@ import pygame
 import random
 import json
 from gamelib.ui import UI
+from gamelib.particles import ParticleManager
 from pathlib import Path
 
 WIDTH = 800
@@ -170,28 +171,43 @@ class Game:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Tetris")
         
-        
-        
-        self.grid = [[0 for column in range(10)] for row in range(20)]
         self.clock = pygame.time.Clock()
         self.running = True
+        
         self.default_fall_timer = 0.6
         self.fall_timer = self.default_fall_timer
+        
+        self.grid = [[0 for column in range(10)] for row in range(20)]
         self.cell_size = 45
+        
         self.cleared_lines = 0
         self.score = 0
         self.high_score = 0
+        
         self.bag = list(PIECES)
         random.shuffle(self.bag)
         self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
+        
         self.scene = 'playing'
+        
         self.pause_ui = UI()
         self.ui = UI()
-        default_label_args = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30))
+        
+        self.particles = ParticleManager()
+        
+        default_label_args = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30), 15)
+        
         self.lines_label = self.ui.create_label((530, 550), f'Lines\n[   ]', *default_label_args)
         self.score_label = self.ui.create_label((530, 350), f'Score\n[   ]', *default_label_args)
         self.high_score_label = self.ui.create_label((530, 750), f'HiScore\n[   ]', *default_label_args)
-        self.continue_button = self.pause_ui.create_button(lambda: self.change_scene('playing'), (WIDTH/2, HEIGHT/2), 'Continue', *default_label_args) # i know doesnt perfectly center
+        
+        self.continue_button = self.pause_ui.create_button(lambda: self.change_scene('playing'), (WIDTH/2, HEIGHT/2), 'Continue', *default_label_args)
+        self.continue_button.set_center((WIDTH / 2, -100 + HEIGHT / 2))
+        
+        self.pause_overlay = self.pause_ui.create_overlay(pygame.Vector2(WIDTH, HEIGHT), alpha=100)
+        self.clearing_lines = False
+        self.clear_timer = 0
+        self.lines_to_clear = []
         
         self.load()
 
@@ -218,30 +234,49 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_q:
                     self.running = False
-                if event.key == pygame.K_SPACE:
-                    self.pieces[0].land(self.grid)
-                if event.key == pygame.K_a:
-                    self.pieces[0].move(self.grid, -1)
-                if event.key == pygame.K_d:
-                    self.pieces[0].move(self.grid, 1)
-                if event.key == pygame.K_RIGHT:
-                    self.pieces[0].rotate(self.grid, 1)
-                if event.key == pygame.K_LEFT:
-                    self.pieces[0].rotate(self.grid, -1)
+                if self.scene == "playing" and not self.clearing_lines:
+                    if event.key == pygame.K_SPACE:
+                        self.pieces[0].land(self.grid)
+                    if event.key == pygame.K_a:
+                        self.pieces[0].move(self.grid, -1)
+                    if event.key == pygame.K_d:
+                        self.pieces[0].move(self.grid, 1)
+                    if event.key == pygame.K_RIGHT:
+                        self.pieces[0].rotate(self.grid, 1)
+                    if event.key == pygame.K_LEFT:
+                        self.pieces[0].rotate(self.grid, -1)
                 if event.key == pygame.K_p:
-                    self.change_scene('paused')
+                    if self.scene == 'playing':
+                        self.change_scene('paused')
+                    elif self.scene == 'paused':
+                        self.change_scene('playing')
                 
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_s]:
-            self.fall_timer = min(self.fall_timer, 0.03)
-                                
+        if self.scene == "playing":
+            if keys[pygame.K_s]:
+                self.fall_timer = min(self.fall_timer, 0.03)                         
 
     def update(self, dt):
+        self.particles.update(dt)
         if self.scene == 'paused':
             mouse_buttons = pygame.mouse.get_pressed()
             mouse_pos = pygame.mouse.get_pos()
             self.pause_ui.update(mouse_buttons, mouse_pos)
+            
         if self.scene == 'playing':
+            if self.clearing_lines:
+                self.clear_timer -= dt
+
+                if self.clear_timer <= 0:
+                    # self.finish_line_clear()
+                    for line in self.lines_to_clear:
+                        self.grid.pop(line)
+                        self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
+                    self.lines_to_clear = []
+                    self.clearing_lines = False
+                    self.clear_timer = 1
+                return
+            
             if self.fall_timer <= 0:
                 self.pieces[0].fall(self.grid)
                 self.fall_timer = self.default_fall_timer
@@ -252,8 +287,27 @@ class Game:
                 if all(self.grid[y]):
                     cleared_lines_now += 1
                     self.cleared_lines += 1
-                    self.grid.pop(y)
-                    self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
+                    self.lines_to_clear.append(y)
+                    self.clearing_lines = True
+                    self.clear_timer = 1.0
+                    for i, cell in enumerate(self.grid[y]):
+                        if not cell:
+                            color = (0, 0, 0, 255)
+                        else:
+                            color = [*cell, 255]
+                        self.particles.spawn(
+                            pygame.Vector2((i+1)*self.cell_size, (y+1)*self.cell_size),
+                            spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
+                            amount=4,
+                            size=15,
+                            lifetime=120,
+                            start_speed=1,
+                            color=color
+                        )
+                        self.grid[y] = [0 for _ in range(len(self.grid[y]))]
+                    
+
+                    
             if cleared_lines_now != 0:
                 self.score += [0, 100, 300, 500, 800][cleared_lines_now]
                 self.update_labels()
@@ -261,9 +315,27 @@ class Game:
             if self.pieces[0].landed:
                 for y, rows in enumerate(self.pieces[0].shape):
                     for x, cell in enumerate(rows):
-                        if cell:
-                            self.grid[self.pieces[0].y + y][self.pieces[0].x + x] = self.pieces[0].color
-                            self.score += 1 + self.pieces[0].hard_drop
+                        if not cell:
+                            continue
+                        
+                        self.grid[self.pieces[0].y + y][self.pieces[0].x + x] = self.pieces[0].color
+                        self.score += 1 + self.pieces[0].hard_drop
+                        
+                        if self.pieces[0].hard_drop:
+                            color = [*self.pieces[0].color, 255]
+                            self.particles.spawn(
+                                pos=pygame.Vector2((self.pieces[0].x + x + 1)*self.cell_size, (self.pieces[0].y + y + 1)*self.cell_size),
+                                spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
+                                amount=3,
+                                size=15,
+                                lifetime=60,
+                                start_speed=30,
+                                color=color,
+                                direction=pygame.Vector2(0, -1),
+                                spread= 17,
+                                slowdown=0.87
+                            )
+                            
                 self.pieces.pop(0)
                 
                 if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
@@ -279,8 +351,9 @@ class Game:
                     self.high_score = self.score
                 self.save()
                 self.update_labels()
-            
-            
+
+
+
     def update_labels(self):
         self.lines_label.update_text(f'Lines\n[ {self.cleared_lines} ]')
         self.score_label.update_text(f'Score\n[ {self.score} ]')
@@ -288,13 +361,19 @@ class Game:
 
     def draw(self):
         self.screen.fill("black")
+        
         self.pieces[0].draw(self.cell_size, self.screen, land_y=self.pieces[0].land(self.grid, get=True), alpha=100)
         for piece in self.pieces:
             piece.draw(self.cell_size, self.screen)
+            
         self.draw_grid(self.grid, self.cell_size, self.screen)
+        
         self.ui.draw(self.screen)
         if self.scene == 'paused':
             self.pause_ui.draw(self.screen)
+            
+        self.particles.draw(self.screen)
+        
         pygame.display.flip()
             
     def draw_grid(self, grid, size, screen):
@@ -321,14 +400,14 @@ class Game:
         for row in range(ROWS+1):
             pygame.draw.rect(screen, grid_color, (offset, row*size + offset, COLUMNS*size, grid_line_width))
             
-    def create_piece(self, x, y, piece=None):
+    def create_piece(self, x, y, piece=None): # TODO make piece work
         if not self.bag:
             self.bag = list(PIECES)
             random.shuffle(self.bag)
             
         if piece is None:
-            shape, color = self.bag[0]
-            self.bag.pop(0)
+            shape, color = self.bag[-1]
+            self.bag.pop()
         return Piece([row[:] for row in shape], color, x, y)
     
     def save(self):
@@ -361,4 +440,5 @@ class Game:
 game = Game()
 game.run()
 
-# TODO r to restart
+# TODO r to restart also add that to pause menu
+# TODO add ghost piece toggle to pause menu, quit to desktop,
