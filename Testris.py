@@ -5,7 +5,7 @@ from gamelib.ui import UI
 from gamelib.particles import ParticleManager
 from pathlib import Path
 
-WIDTH = 800
+WIDTH = 800 #800 1000
 HEIGHT = 1000
 FPS = 60
 BASE_DIR = Path(__file__).parent
@@ -168,7 +168,8 @@ class Game:
     def __init__(self):
         pygame.init()
 
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.screen = pygame.display.set_mode((800, 1000), pygame.RESIZABLE)
+        self.fixed_screen = pygame.Surface((800, 1000))
         pygame.display.set_caption("Tetris")
         
         self.clock = pygame.time.Clock()
@@ -191,23 +192,48 @@ class Game:
         self.scene = 'playing'
         
         self.pause_ui = UI()
-        self.ui = UI()
+        self.settings_ui = UI()
+        self.game_ui = UI()
         
         self.particles = ParticleManager()
         
-        default_label_args = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30), 15)
+        # default_label_kwargs = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30), 15)
         
-        self.lines_label = self.ui.create_label((530, 550), f'Lines\n[   ]', *default_label_args)
-        self.score_label = self.ui.create_label((530, 350), f'Score\n[   ]', *default_label_args)
-        self.high_score_label = self.ui.create_label((530, 750), f'HiScore\n[   ]', *default_label_args)
+        default_label_kwargs = {
+            'text_size': 75,
+            'text_color': (220, 220, 220),
+            'background': True,
+            'padding': 15,
+            'background_size': (0, 0),
+            'background_color': (30, 30, 30),
+            'border_radius': 15
+        }
         
-        self.continue_button = self.pause_ui.create_button(lambda: self.change_scene('playing'), (WIDTH/2, HEIGHT/2), 'Continue', *default_label_args)
-        self.continue_button.set_center((WIDTH / 2, -100 + HEIGHT / 2))
+        self.game_ui.create_label("lines", (12*self.cell_size, 550), f'Lines\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("score", (12*self.cell_size, 350), f'Score\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("high_score", (12*self.cell_size, 750), f'HiScore\n[   ]', **default_label_kwargs)
         
-        self.pause_overlay = self.pause_ui.create_overlay(pygame.Vector2(WIDTH, HEIGHT), alpha=100)
+        self.pause_ui.create_button("continue", lambda: self.change_scene('playing'), (0, 0), 'Continue', **default_label_kwargs)
+        self.pause_ui.create_button("settings", lambda: self.change_scene('settings'), (0, 0), 'Settings', **default_label_kwargs)
+        self.pause_ui.create_button("restart", lambda: self.restart_game(), (0, 0), 'Restart', **default_label_kwargs)
+        self.pause_ui.create_button("quit", lambda: self.quit(), (0, 0), 'Quit', **default_label_kwargs)
+        self.pause_ui.buttons["continue"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
+        # self.pause_ui.create_button("save", lambda: self.save(), (0, 0), 'Save', **default_label_kwargs)
+        # self.pause_ui.buttons["save"].set_center((WIDTH / 2, + (HEIGHT / 2) + 300))
+        self.pause_ui.buttons["settings"].set_center((WIDTH / 2, + (HEIGHT / 2) - 80))
+        self.pause_ui.buttons["restart"].set_center((WIDTH / 2, -50 + (HEIGHT / 2) + 70))
+        self.pause_ui.buttons["quit"].set_center((WIDTH / 2, + (HEIGHT / 2) + 120))
+        self.pause_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=100)
+        
+        self.settings_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=175)
+        self.settings_ui.create_button("ghost", self.set_ghost_piece, (0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs)
+        self.settings_ui.buttons["ghost"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
+        
         self.clearing_lines = False
         self.clear_timer = 0
         self.lines_to_clear = []
+        
+        self.ghost_piece = True
         
         self.load()
 
@@ -215,6 +241,12 @@ class Game:
 
     def change_scene(self, scene: str):
         self.scene = scene
+
+    def quit(self):
+        self.running = False
+        
+    def set_ghost_piece(self, boolean):
+        self.ghost_piece = boolean
 
     def run(self):
         while self.running:
@@ -225,11 +257,23 @@ class Game:
             self.draw()
             
         pygame.quit()
+        
+    # def adjust_to_screen(self):
+    #     WIDTH, HEIGHT = self.screen.get_size()
+        # self.cell_size = HEIGHT/22
+        # self.pause_overlay.resize((WIDTH, HEIGHT))
+        # self.continue_button.set_center((WIDTH / 2, -100 + HEIGHT / 2))
+         
+        # self.score_label.update_shape(new_x=12*self.cell_size)
+        # self.lines_label.update_shape(new_x=12*self.cell_size)
+        # self.high_score_label.update_shape(new_x=12*self.cell_size)
 
     def handle_events(self, dt): 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+            # if event.type == pygame.WINDOWRESIZED:
+                # self.adjust_to_screen()
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_q:
@@ -245,11 +289,14 @@ class Game:
                         self.pieces[0].rotate(self.grid, 1)
                     if event.key == pygame.K_LEFT:
                         self.pieces[0].rotate(self.grid, -1)
-                if event.key == pygame.K_p:
-                    if self.scene == 'playing':
-                        self.change_scene('paused')
-                    elif self.scene == 'paused':
-                        self.change_scene('playing')
+                if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
+                    match(self.scene):
+                        case 'playing':
+                            self.change_scene('paused')
+                        case 'paused':
+                            self.change_scene('playing')
+                        case 'settings':
+                            self.change_scene('paused')
                 
         keys = pygame.key.get_pressed()
         if self.scene == "playing":
@@ -257,18 +304,27 @@ class Game:
                 self.fall_timer = min(self.fall_timer, 0.03)                         
 
     def update(self, dt):
-        self.particles.update(dt)
-        if self.scene == 'paused':
+        if self.scene == 'paused' or self.scene == 'settings':
             mouse_buttons = pygame.mouse.get_pressed()
-            mouse_pos = pygame.mouse.get_pos()
-            self.pause_ui.update(mouse_buttons, mouse_pos)
+            mouse_pos = pygame.Vector2(*pygame.mouse.get_pos())
+            screen_x_scale, screen_y_scale =self.screen.get_size()
+            screen_x_scale /= WIDTH
+            screen_y_scale /= HEIGHT
+            mouse_x = mouse_pos.x / screen_x_scale
+            mouse_y = mouse_pos.y / screen_y_scale
+            match(self.scene):
+                case 'paused':
+                    self.pause_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
+                case 'settings':
+                    self.settings_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
+            
             
         if self.scene == 'playing':
+            self.particles.update(dt)
             if self.clearing_lines:
                 self.clear_timer -= dt
 
                 if self.clear_timer <= 0:
-                    # self.finish_line_clear()
                     for line in self.lines_to_clear:
                         self.grid.pop(line)
                         self.grid.insert(0, [0 for cell in range(len(self.grid[0]))])
@@ -299,14 +355,12 @@ class Game:
                             pygame.Vector2((i+1)*self.cell_size, (y+1)*self.cell_size),
                             spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
                             amount=4,
-                            size=15,
+                            size=self.cell_size/3,
                             lifetime=120,
                             start_speed=1,
                             color=color
                         )
                         self.grid[y] = [0 for _ in range(len(self.grid[y]))]
-                    
-
                     
             if cleared_lines_now != 0:
                 self.score += [0, 100, 300, 500, 800][cleared_lines_now]
@@ -339,9 +393,7 @@ class Game:
                 self.pieces.pop(0)
                 
                 if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
-                    self.grid = [[0 for column in range(10)] for row in range(20)]
-                    self.cleared_lines = 0
-                    self.score = 0
+                    self.restart_game()
                 self.pieces[0].x = 4
                 self.pieces[0].y = 0
             
@@ -352,27 +404,40 @@ class Game:
                 self.save()
                 self.update_labels()
 
-
+    def restart_game(self):
+        self.pieces.clear()
+        self.pieces.append(self.create_piece(4, 0))
+        self.pieces.append(self.create_piece(12, 2))
+        self.grid = [[0 for column in range(10)] for row in range(20)]
+        self.cleared_lines = 0
+        self.score = 0
+        self.update_labels()
+        self.save()
 
     def update_labels(self):
-        self.lines_label.update_text(f'Lines\n[ {self.cleared_lines} ]')
-        self.score_label.update_text(f'Score\n[ {self.score} ]')
-        self.high_score_label.update_text(f'HiScore\n[ {self.high_score} ]')
+        self.game_ui.labels["lines"].update_text(f'Lines\n[ {self.cleared_lines} ]')
+        self.game_ui.labels["score"].update_text(f'Score\n[ {self.score} ]')
+        self.game_ui.labels["high_score"].update_text(f'HiScore\n[ {self.high_score} ]')
 
     def draw(self):
-        self.screen.fill("black")
-        
-        self.pieces[0].draw(self.cell_size, self.screen, land_y=self.pieces[0].land(self.grid, get=True), alpha=100)
+        self.fixed_screen.fill("black")
+        if self.ghost_piece:
+            self.pieces[0].draw(self.cell_size, self.fixed_screen, land_y=self.pieces[0].land(self.grid, get=True), alpha=100)
         for piece in self.pieces:
-            piece.draw(self.cell_size, self.screen)
+            piece.draw(self.cell_size, self.fixed_screen)
             
-        self.draw_grid(self.grid, self.cell_size, self.screen)
+        self.draw_grid(self.grid, self.cell_size, self.fixed_screen)
         
-        self.ui.draw(self.screen)
+        self.game_ui.draw(self.fixed_screen)
         if self.scene == 'paused':
-            self.pause_ui.draw(self.screen)
+            self.pause_ui.draw(self.fixed_screen)
+        if self.scene == 'settings':
+            self.settings_ui.draw(self.fixed_screen)
             
-        self.particles.draw(self.screen)
+        self.particles.draw(self.fixed_screen)
+        
+        scaled = pygame.transform.scale(self.fixed_screen, self.screen.get_size())
+        self.screen.blit(scaled, (0, 0))
         
         pygame.display.flip()
             
@@ -385,7 +450,7 @@ class Game:
             for x, cell in enumerate(rows):
                 if cell:
                     draw_block(
-                        self.screen,
+                        self.fixed_screen,
                         cell,
                         (
                             x*size + size,
@@ -440,5 +505,4 @@ class Game:
 game = Game()
 game.run()
 
-# TODO r to restart also add that to pause menu
-# TODO add ghost piece toggle to pause menu, quit to desktop,
+# TODO piece drop speed increases every 10 lines with a max
