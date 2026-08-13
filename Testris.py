@@ -5,7 +5,7 @@ from gamelib.ui import UI
 from gamelib.particles import ParticleManager
 from pathlib import Path
 
-WIDTH = 800 #800 1000
+WIDTH = 800
 HEIGHT = 1000
 FPS = 60
 BASE_DIR = Path(__file__).parent
@@ -177,6 +177,7 @@ class Game:
         
         self.default_fall_timer = 0.6
         self.fall_timer = self.default_fall_timer
+        self.fall_speed_multiplier = 1
         
         self.grid = [[0 for column in range(10)] for row in range(20)]
         self.cell_size = 45
@@ -191,14 +192,25 @@ class Game:
         
         self.scene = 'playing'
         
+        self.particles = ParticleManager()
+
+        self.clearing_lines = False
+        self.clear_timer = 0
+        self.lines_to_clear = []
+        
+        self.ghost_piece = True
+        
+        self.setup_ui()
+        
+        self.load()
+
+        self.update_labels()
+
+    #region UI Setup
+    def setup_ui(self):
         self.pause_ui = UI()
         self.settings_ui = UI()
         self.game_ui = UI()
-        
-        self.particles = ParticleManager()
-        
-        # default_label_kwargs = (75, (220, 220, 220), True, 15, (0, 0), (30, 30, 30), 15)
-        
         default_label_kwargs = {
             'text_size': 75,
             'text_color': (220, 220, 220),
@@ -208,37 +220,36 @@ class Game:
             'background_color': (30, 30, 30),
             'border_radius': 15
         }
+        self.setup_game_ui(default_label_kwargs)
+        self.setup_pause_ui(default_label_kwargs)
+        self.setup_settings_ui(default_label_kwargs)
         
-        self.game_ui.create_label("lines", (12*self.cell_size, 550), f'Lines\n[   ]', **default_label_kwargs)
+        
+    def setup_game_ui(self, default_label_kwargs):
         self.game_ui.create_label("score", (12*self.cell_size, 350), f'Score\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("lines", (12*self.cell_size, 550), f'Lines\n[   ]', **default_label_kwargs)
         self.game_ui.create_label("high_score", (12*self.cell_size, 750), f'HiScore\n[   ]', **default_label_kwargs)
-        
+
+    def setup_pause_ui(self, default_label_kwargs):
         self.pause_ui.create_button("continue", lambda: self.change_scene('playing'), (0, 0), 'Continue', **default_label_kwargs)
         self.pause_ui.create_button("settings", lambda: self.change_scene('settings'), (0, 0), 'Settings', **default_label_kwargs)
-        self.pause_ui.create_button("restart", lambda: self.restart_game(), (0, 0), 'Restart', **default_label_kwargs)
-        self.pause_ui.create_button("quit", lambda: self.quit(), (0, 0), 'Quit', **default_label_kwargs)
+        self.pause_ui.create_button("restart", self.restart_game, (0, 0), 'Restart', **default_label_kwargs)
+        self.pause_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
         self.pause_ui.buttons["continue"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
-        # self.pause_ui.create_button("save", lambda: self.save(), (0, 0), 'Save', **default_label_kwargs)
+        # self.pause_ui.create_button("save", self.save, (0, 0), 'Save', **default_label_kwargs)
         # self.pause_ui.buttons["save"].set_center((WIDTH / 2, + (HEIGHT / 2) + 300))
         self.pause_ui.buttons["settings"].set_center((WIDTH / 2, + (HEIGHT / 2) - 80))
         self.pause_ui.buttons["restart"].set_center((WIDTH / 2, -50 + (HEIGHT / 2) + 70))
         self.pause_ui.buttons["quit"].set_center((WIDTH / 2, + (HEIGHT / 2) + 120))
         self.pause_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=100)
-        
+
+    def setup_settings_ui(self, default_label_kwargs):
         self.settings_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=175)
         self.settings_ui.create_button("ghost", self.set_ghost_piece, (0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs)
         self.settings_ui.buttons["ghost"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
-        
-        self.clearing_lines = False
-        self.clear_timer = 0
-        self.lines_to_clear = []
-        
-        self.ghost_piece = True
-        
-        self.load()
+    #endregion
 
-        self.update_labels()
-
+    #region Helpers
     def change_scene(self, scene: str):
         self.scene = scene
 
@@ -248,27 +259,33 @@ class Game:
     def set_ghost_piece(self, boolean):
         self.ghost_piece = boolean
 
+    def update_labels(self):
+        self.game_ui.labels["lines"].update_text(f'Lines\n[ {self.cleared_lines} ]')
+        self.game_ui.labels["score"].update_text(f'Score\n[ {self.score} ]')
+        self.game_ui.labels["high_score"].update_text(f'HiScore\n[ {self.high_score} ]')
+        
+    def restart_game(self):
+        self.pieces.clear()
+        self.pieces.append(self.create_piece(4, 0))
+        self.pieces.append(self.create_piece(12, 2))
+        self.grid = [[0 for column in range(10)] for row in range(20)]
+        self.cleared_lines = 0
+        self.score = 0
+        self.update_labels()
+        self.save()
+    #endregion
+
     def run(self):
         while self.running:
             dt = self.clock.tick(FPS) / 1000
 
-            self.handle_events(dt)
+            self.handle_events()
             self.update(dt)
             self.draw()
             
         pygame.quit()
-        
-    # def adjust_to_screen(self):
-    #     WIDTH, HEIGHT = self.screen.get_size()
-        # self.cell_size = HEIGHT/22
-        # self.pause_overlay.resize((WIDTH, HEIGHT))
-        # self.continue_button.set_center((WIDTH / 2, -100 + HEIGHT / 2))
-         
-        # self.score_label.update_shape(new_x=12*self.cell_size)
-        # self.lines_label.update_shape(new_x=12*self.cell_size)
-        # self.high_score_label.update_shape(new_x=12*self.cell_size)
 
-    def handle_events(self, dt): 
+    def handle_events(self): 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -276,19 +293,21 @@ class Game:
                 # self.adjust_to_screen()
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    self.running = False
+                match(event.key):
+                    case pygame.K_q:
+                        self.running = False
                 if self.scene == "playing" and not self.clearing_lines:
-                    if event.key == pygame.K_SPACE:
-                        self.pieces[0].land(self.grid)
-                    if event.key == pygame.K_a:
-                        self.pieces[0].move(self.grid, -1)
-                    if event.key == pygame.K_d:
-                        self.pieces[0].move(self.grid, 1)
-                    if event.key == pygame.K_RIGHT:
-                        self.pieces[0].rotate(self.grid, 1)
-                    if event.key == pygame.K_LEFT:
-                        self.pieces[0].rotate(self.grid, -1)
+                    match(event.key):
+                        case pygame.K_SPACE:
+                            self.pieces[0].land(self.grid)
+                        case pygame.K_a:
+                            self.pieces[0].move(self.grid, -1)
+                        case pygame.K_d:
+                            self.pieces[0].move(self.grid, 1)
+                        case pygame.K_RIGHT:
+                            self.pieces[0].rotate(self.grid, 1)
+                        case pygame.K_LEFT:
+                            self.pieces[0].rotate(self.grid, -1)
                 if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                     match(self.scene):
                         case 'playing':
@@ -301,7 +320,8 @@ class Game:
         keys = pygame.key.get_pressed()
         if self.scene == "playing":
             if keys[pygame.K_s]:
-                self.fall_timer = min(self.fall_timer, 0.03)                         
+                self.fall_timer = min(self.fall_timer, 0.03)
+                self.cleared_lines = 15      
 
     def update(self, dt):
         if self.scene == 'paused' or self.scene == 'settings':
@@ -331,12 +351,11 @@ class Game:
                     self.lines_to_clear = []
                     self.clearing_lines = False
                     self.clear_timer = 1
-                return
             
-            if self.fall_timer <= 0:
+            if self.fall_timer <= 0 and not self.clearing_lines:
                 self.pieces[0].fall(self.grid)
                 self.fall_timer = self.default_fall_timer
-            self.fall_timer -= dt
+            self.fall_timer -= dt * self.fall_speed_multiplier
             
             cleared_lines_now = 0
             for y in range(len(self.grid)):
@@ -361,7 +380,9 @@ class Game:
                             color=color
                         )
                         self.grid[y] = [0 for _ in range(len(self.grid[y]))]
-                    
+                        
+            self.fall_speed_multiplier = 1 + (self.cleared_lines // 5) / 3
+                        
             if cleared_lines_now != 0:
                 self.score += [0, 100, 300, 500, 800][cleared_lines_now]
                 self.update_labels()
@@ -389,35 +410,20 @@ class Game:
                                 spread= 17,
                                 slowdown=0.87
                             )
-                            
+
                 self.pieces.pop(0)
-                
-                if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
-                    self.restart_game()
                 self.pieces[0].x = 4
                 self.pieces[0].y = 0
-            
                 self.pieces.append(self.create_piece(12, 2))
+                if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
+                    self.restart_game()
+
+                
                 
                 if self.score > self.high_score:
                     self.high_score = self.score
                 self.save()
                 self.update_labels()
-
-    def restart_game(self):
-        self.pieces.clear()
-        self.pieces.append(self.create_piece(4, 0))
-        self.pieces.append(self.create_piece(12, 2))
-        self.grid = [[0 for column in range(10)] for row in range(20)]
-        self.cleared_lines = 0
-        self.score = 0
-        self.update_labels()
-        self.save()
-
-    def update_labels(self):
-        self.game_ui.labels["lines"].update_text(f'Lines\n[ {self.cleared_lines} ]')
-        self.game_ui.labels["score"].update_text(f'Score\n[ {self.score} ]')
-        self.game_ui.labels["high_score"].update_text(f'HiScore\n[ {self.high_score} ]')
 
     def draw(self):
         self.fixed_screen.fill("black")
@@ -498,10 +504,6 @@ class Game:
         except (FileNotFoundError, json.JSONDecodeError):
             self.save()
             
-
-    
-
-
 game = Game()
 game.run()
 
