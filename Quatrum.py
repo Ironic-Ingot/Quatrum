@@ -71,25 +71,42 @@ PIECES = (
 
 def draw_block(screen, color, rect, alpha=255):
     x, y, size, _ = rect
-    block = pygame.Surface((size, size), pygame.SRCALPHA)
     smaller = 0.8*size
-    pygame.draw.rect(
-        block,
-        [i/1.5 for i in color],
-        (0, 0, size, size)
-    )
-    pygame.draw.rect(
-        block,
-        color,
-        (
-            size - smaller,
-            size - smaller,
-            size - (size - smaller) * 2,
-            size - (size - smaller) * 2
+    if alpha != 255:
+        block = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.rect(
+            block,
+            [int(i/1.5) for i in color],
+            (0, 0, size, size)
         )
-    )
-    block.set_alpha(alpha)
-    screen.blit(block, (x, y))
+        pygame.draw.rect(
+            block,
+            color,
+            (
+                size - smaller,
+                size - smaller,
+                size - (size - smaller) * 2,
+                size - (size - smaller) * 2
+            )
+        )
+        block.set_alpha(alpha)
+        screen.blit(block, (x, y))
+    else:
+        pygame.draw.rect(
+            screen,
+            [int(i/1.5) for i in color],
+            (x, y, size, size)
+        )
+        pygame.draw.rect(
+            screen,
+            color,
+            (
+                x + size - smaller,
+                y + size - smaller,
+                size - (size - smaller) * 2,
+                size - (size - smaller) * 2
+            )
+        )
 
 class Piece:
     def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
@@ -110,7 +127,7 @@ class Piece:
         if self.can_place(grid, rotated_shape, self.x, self.y, 0, 0):
             self.shape = rotated_shape
             
-    def fall(self, grid, land=False, get=False):
+    def fall(self, grid, get=False):
         check_y = self.y
         if self.can_place(grid, self.shape, self.x, check_y, 0, 1):
             check_y += 1
@@ -288,6 +305,11 @@ class Game:
         self.grid = [[0 for column in range(10)] for row in range(20)]
         self.cleared_lines = 0
         self.score = 0
+        self.fall_speed_multiplier = 1
+        self.fall_timer = self.default_fall_timer
+        self.clearing_lines = False
+        self.lines_to_clear.clear()
+        self.clear_timer = 0
         self.update_labels()
         self.save()
     #endregion
@@ -337,8 +359,7 @@ class Game:
         keys = pygame.key.get_pressed()
         if self.scene == "playing":
             if keys[pygame.K_s]:
-                self.fall_timer = min(self.fall_timer, 0.03)
-                self.cleared_lines = 15      
+                self.fall_timer = min(self.fall_timer, 0.03)  
 
     def update(self, dt):
         if self.scene != 'playing':
@@ -548,6 +569,7 @@ class Game:
         
     def load(self):
         try:
+            (BASE_DIR / "GameData").mkdir(exist_ok=True)
             with open(BASE_DIR / 'GameData/saved.json', "r") as file:
                 self.save_data: dict = json.load(file)
                 self.high_score = self.save_data.get('high_score', 0)
@@ -561,3 +583,5 @@ class Game:
             
 game = Game()
 game.run()
+
+# TODO sound effects and music and option to toggle them
