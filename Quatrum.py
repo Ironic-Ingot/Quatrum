@@ -6,7 +6,7 @@ from gamelib.particles import ParticleManager
 from pathlib import Path
 
 WIDTH = 800
-HEIGHT = 1000
+HEIGHT = 45*22
 FPS = 60
 BASE_DIR = Path(__file__).parent
 
@@ -168,9 +168,9 @@ class Game:
     def __init__(self):
         pygame.init()
 
-        self.screen = pygame.display.set_mode((800, 1000), pygame.RESIZABLE)
-        self.fixed_screen = pygame.Surface((800, 1000))
-        pygame.display.set_caption("Tetris")
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+        self.fixed_screen = pygame.Surface((WIDTH, HEIGHT))
+        pygame.display.set_caption("Quatrum")
         
         self.clock = pygame.time.Clock()
         self.running = True
@@ -190,7 +190,7 @@ class Game:
         random.shuffle(self.bag)
         self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
         
-        self.scene = 'playing'
+        self.scene = 'main_menu'
         
         self.particles = ParticleManager()
 
@@ -200,14 +200,13 @@ class Game:
         
         self.ghost_piece = True
         
-        self.setup_ui()
-        
         self.load()
-
+        self.setup_ui()
         self.update_labels()
 
     #region UI Setup
     def setup_ui(self):
+        self.main_menu_ui = UI()
         self.pause_ui = UI()
         self.settings_ui = UI()
         self.game_ui = UI()
@@ -223,7 +222,16 @@ class Game:
         self.setup_game_ui(default_label_kwargs)
         self.setup_pause_ui(default_label_kwargs)
         self.setup_settings_ui(default_label_kwargs)
-        
+        self.setup_main_menu_ui(default_label_kwargs)
+    
+    def setup_main_menu_ui(self, default_label_kwargs):
+        self.main_menu_ui.create_label("title", (12*self.cell_size, 350), f'Quatrum', **(default_label_kwargs | {'text_size': 160, 'text_color': (170, 60, 170), 'background_color': (90, 20, 90)}))
+        self.main_menu_ui.create_button('play', lambda: self.change_scene('playing'), (0, 0), 'Continue' if self.score > 0 else 'Start', **(default_label_kwargs | {'text_size': 100}))
+        self.main_menu_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
+        self.main_menu_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), color=(10, 10, 10), alpha=255)
+        self.main_menu_ui.labels["title"].set_center((WIDTH / 2, + (HEIGHT / 2) - 200))
+        self.main_menu_ui.buttons["quit"].set_center((WIDTH / 2, + (HEIGHT / 2) + 120))
+        self.main_menu_ui.buttons["play"].set_center((WIDTH / 2, + (HEIGHT / 2)))
         
     def setup_game_ui(self, default_label_kwargs):
         self.game_ui.create_label("score", (12*self.cell_size, 350), f'Score\n[   ]', **default_label_kwargs)
@@ -324,7 +332,7 @@ class Game:
                 self.cleared_lines = 15      
 
     def update(self, dt):
-        if self.scene == 'paused' or self.scene == 'settings':
+        if self.scene == 'paused' or self.scene == 'settings' or self.scene == 'main_menu':
             mouse_buttons = pygame.mouse.get_pressed()
             mouse_pos = pygame.Vector2(*pygame.mouse.get_pos())
             screen_x_scale, screen_y_scale =self.screen.get_size()
@@ -337,6 +345,8 @@ class Game:
                     self.pause_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
                 case 'settings':
                     self.settings_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
+                case 'main_menu':
+                    self.main_menu_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
             
             
         if self.scene == 'playing':
@@ -418,8 +428,6 @@ class Game:
                 if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
                     self.restart_game()
 
-                
-                
                 if self.score > self.high_score:
                     self.high_score = self.score
                 self.save()
@@ -429,14 +437,18 @@ class Game:
         self.fixed_screen.fill("black")
         if self.ghost_piece:
             self.pieces[0].draw(self.cell_size, self.fixed_screen, land_y=self.pieces[0].land(self.grid, get=True), alpha=100)
+        
         for piece in self.pieces:
             piece.draw(self.cell_size, self.fixed_screen)
-            
+
         self.draw_grid(self.grid, self.cell_size, self.fixed_screen)
+        self.draw_container(self.fixed_screen, self.cell_size)
         
         self.game_ui.draw(self.fixed_screen)
         if self.scene == 'paused':
             self.pause_ui.draw(self.fixed_screen)
+        if self.scene == 'main_menu':
+            self.main_menu_ui.draw(self.fixed_screen)
         if self.scene == 'settings':
             self.settings_ui.draw(self.fixed_screen)
             
@@ -456,7 +468,7 @@ class Game:
             for x, cell in enumerate(rows):
                 if cell:
                     draw_block(
-                        self.fixed_screen,
+                        screen,
                         cell,
                         (
                             x*size + size,
@@ -471,7 +483,30 @@ class Game:
         for row in range(ROWS+1):
             pygame.draw.rect(screen, grid_color, (offset, row*size + offset, COLUMNS*size, grid_line_width))
             
-    def create_piece(self, x, y, piece=None): # TODO make piece work
+    def draw_container(self, screen, size):
+        for y in [0, 21*size]:
+            for x in range(0, 12*size, size):
+                draw_block(
+                    screen,
+                    (150, 150, 150),
+                    (x, y, size, size)
+                )
+        for x in [0, 11*size]:
+            for y in range(size, size*21, size):
+                draw_block(
+                    screen,
+                    (150, 150, 150),
+                    (x, y, size, size)
+                )
+        # for x in range(12*size, 20*size, size):
+        #     for y in range(size, 17*size, size):
+        #         draw_block(
+        #             screen,
+        #             (150, 150, 150),
+        #             (x, y, size, size)
+        #         )
+            
+    def create_piece(self, x, y, piece: int=None):
         if not self.bag:
             self.bag = list(PIECES)
             random.shuffle(self.bag)
@@ -479,6 +514,8 @@ class Game:
         if piece is None:
             shape, color = self.bag[-1]
             self.bag.pop()
+        else:
+            shape, color = self.pieces[piece]
         return Piece([row[:] for row in shape], color, x, y)
     
     def save(self):
