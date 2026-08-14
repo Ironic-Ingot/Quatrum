@@ -6,7 +6,7 @@ from gamelib.particles import ParticleManager
 from pathlib import Path
 
 WIDTH = 800
-HEIGHT = 45*22
+HEIGHT = 990
 FPS = 60
 BASE_DIR = Path(__file__).parent
 
@@ -208,6 +208,7 @@ class Game:
     def setup_ui(self):
         self.main_menu_ui = UI()
         self.pause_ui = UI()
+        self.game_over_ui = UI()
         self.settings_ui = UI()
         self.game_ui = UI()
         default_label_kwargs = {
@@ -219,13 +220,21 @@ class Game:
             'background_color': (30, 30, 30),
             'border_radius': 15
         }
+        self.setup_game_over_ui(default_label_kwargs)
         self.setup_game_ui(default_label_kwargs)
         self.setup_pause_ui(default_label_kwargs)
         self.setup_settings_ui(default_label_kwargs)
         self.setup_main_menu_ui(default_label_kwargs)
+        
+    def setup_game_over_ui(self, default_label_kwargs):
+        self.game_over_ui.create_label("title", (12*self.cell_size, 350), 'Game Over', **(default_label_kwargs | {'text_size': 120, 'background_color': (180, 50, 50)}))
+        self.game_over_ui.create_button('restart', lambda: (self.change_scene('playing'), self.restart_game()), (0, 0), 'Restart', **(default_label_kwargs | {'text_size': 90}))
+        self.game_over_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), color=(10, 10, 10), alpha=100)
+        self.game_over_ui.buttons["restart"].set_center((WIDTH / 2, + (HEIGHT / 2) - 20))
+        self.game_over_ui.labels["title"].set_center((WIDTH / 2, + (HEIGHT / 2) - 150))
     
     def setup_main_menu_ui(self, default_label_kwargs):
-        self.main_menu_ui.create_label("title", (12*self.cell_size, 350), f'Quatrum', **(default_label_kwargs | {'text_size': 160, 'text_color': (170, 60, 170), 'background_color': (90, 20, 90)}))
+        self.main_menu_ui.create_label("title", (12*self.cell_size, 350), 'Quatrum', **(default_label_kwargs | {'text_size': 160, 'text_color': (170, 60, 170), 'background_color': (90, 20, 90)}))
         self.main_menu_ui.create_button('play', lambda: self.change_scene('playing'), (0, 0), 'Continue' if self.score > 0 else 'Start', **(default_label_kwargs | {'text_size': 100}))
         self.main_menu_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
         self.main_menu_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), color=(10, 10, 10), alpha=255)
@@ -244,8 +253,6 @@ class Game:
         self.pause_ui.create_button("restart", self.restart_game, (0, 0), 'Restart', **default_label_kwargs)
         self.pause_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
         self.pause_ui.buttons["continue"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
-        # self.pause_ui.create_button("save", self.save, (0, 0), 'Save', **default_label_kwargs)
-        # self.pause_ui.buttons["save"].set_center((WIDTH / 2, + (HEIGHT / 2) + 300))
         self.pause_ui.buttons["settings"].set_center((WIDTH / 2, + (HEIGHT / 2) - 80))
         self.pause_ui.buttons["restart"].set_center((WIDTH / 2, -50 + (HEIGHT / 2) + 70))
         self.pause_ui.buttons["quit"].set_center((WIDTH / 2, + (HEIGHT / 2) + 120))
@@ -253,7 +260,9 @@ class Game:
 
     def setup_settings_ui(self, default_label_kwargs):
         self.settings_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=175)
-        self.settings_ui.create_button("ghost", self.set_ghost_piece, (0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs)
+        self.settings_ui.create_button("ghost", self.set_ghost_piece, (0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs, state=self.ghost_piece)
+        self.settings_ui.create_button("save", self.save, (0, 0), 'Save', **default_label_kwargs)
+        self.settings_ui.buttons["save"].set_center((WIDTH / 2, + (HEIGHT / 2) - 50))
         self.settings_ui.buttons["ghost"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
     #endregion
 
@@ -332,7 +341,7 @@ class Game:
                 self.cleared_lines = 15      
 
     def update(self, dt):
-        if self.scene == 'paused' or self.scene == 'settings' or self.scene == 'main_menu':
+        if self.scene != 'playing':
             mouse_buttons = pygame.mouse.get_pressed()
             mouse_pos = pygame.Vector2(*pygame.mouse.get_pos())
             screen_x_scale, screen_y_scale =self.screen.get_size()
@@ -347,6 +356,10 @@ class Game:
                     self.settings_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
                 case 'main_menu':
                     self.main_menu_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
+                case 'game_over':
+                    self.game_over_ui.update(mouse_buttons, pygame.Vector2(mouse_x, mouse_y))
+                case _:
+                    pass
             
             
         if self.scene == 'playing':
@@ -426,7 +439,7 @@ class Game:
                 self.pieces[0].y = 0
                 self.pieces.append(self.create_piece(12, 2))
                 if not self.pieces[0].can_place(self.grid, self.pieces[0].shape, 4, 0, 0, 0):
-                    self.restart_game()
+                    self.scene = 'game_over'
 
                 if self.score > self.high_score:
                     self.high_score = self.score
@@ -445,14 +458,17 @@ class Game:
         self.draw_container(self.fixed_screen, self.cell_size)
         
         self.game_ui.draw(self.fixed_screen)
+        self.particles.draw(self.fixed_screen)
         if self.scene == 'paused':
             self.pause_ui.draw(self.fixed_screen)
         if self.scene == 'main_menu':
             self.main_menu_ui.draw(self.fixed_screen)
         if self.scene == 'settings':
             self.settings_ui.draw(self.fixed_screen)
+        if self.scene == 'game_over':
+            self.game_over_ui.draw(self.fixed_screen)
             
-        self.particles.draw(self.fixed_screen)
+        
         
         scaled = pygame.transform.scale(self.fixed_screen, self.screen.get_size())
         self.screen.blit(scaled, (0, 0))
@@ -485,7 +501,7 @@ class Game:
             
     def draw_container(self, screen, size):
         for y in [0, 21*size]:
-            for x in range(0, 12*size, size):
+            for x in range(0, 18*size, size):
                 draw_block(
                     screen,
                     (150, 150, 150),
@@ -525,7 +541,8 @@ class Game:
                 "score": self.score,
                 "cleared_lines": self.cleared_lines,
                 "grid": self.grid,
-                "pieces": [piece.to_dict() for piece in self.pieces]
+                "pieces": [piece.to_dict() for piece in self.pieces],
+                "ghost": self.ghost_piece
             }
             json.dump(self.save_data, file, indent=4)
         
@@ -536,6 +553,7 @@ class Game:
                 self.high_score = self.save_data.get('high_score', 0)
                 self.score = self.save_data.get('score', 0)
                 self.cleared_lines = self.save_data.get('cleared_lines', 0)
+                self.ghost_piece = self.save_data.get('ghost', True)
                 self.grid = self.save_data.get('grid', self.grid)
                 self.pieces = [Piece(**piece) for piece in self.save_data.get('pieces', [])] or self.pieces
         except (FileNotFoundError, json.JSONDecodeError):
@@ -543,5 +561,3 @@ class Game:
             
 game = Game()
 game.run()
-
-# TODO piece drop speed increases every 10 lines with a max
