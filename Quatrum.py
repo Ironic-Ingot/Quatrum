@@ -72,41 +72,31 @@ PIECES = (
 def draw_block(screen, color, rect, alpha=255):
     x, y, size, _ = rect
     smaller = 0.8*size
-    if alpha != 255:
-        block = pygame.Surface((size, size), pygame.SRCALPHA)
-        pygame.draw.rect(
-            block,
-            [int(i/1.5) for i in color],
-            (0, 0, size, size)
-        )
-        pygame.draw.rect(
-            block,
-            color,
-            (
-                size - smaller,
-                size - smaller,
-                size - (size - smaller) * 2,
-                size - (size - smaller) * 2
-            )
-        )
-        block.set_alpha(alpha)
-        screen.blit(block, (x, y))
+    if alpha == 255:
+        target = screen
+        draw_x, draw_y = x, y
     else:
-        pygame.draw.rect(
-            screen,
-            [int(i/1.5) for i in color],
-            (x, y, size, size)
+        target = pygame.Surface((size, size), pygame.SRCALPHA)
+        draw_x = draw_y = 0
+        
+    pygame.draw.rect(
+        target,
+        [int(i/1.5) for i in color],
+        (draw_x, draw_y, size, size)
+    )
+    pygame.draw.rect(
+        target,
+        color,
+        (
+            draw_x + size - smaller,
+            draw_y + size - smaller,
+            size - (size - smaller) * 2,
+            size - (size - smaller) * 2
         )
-        pygame.draw.rect(
-            screen,
-            color,
-            (
-                x + size - smaller,
-                y + size - smaller,
-                size - (size - smaller) * 2,
-                size - (size - smaller) * 2
-            )
-        )
+    )
+    if alpha != 255:
+        target.set_alpha(alpha)
+        screen.blit(target, (x, y))
 
 class Piece:
     def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
@@ -118,37 +108,40 @@ class Piece:
         self.hard_drop = hard_drop
     
     def rotate(self, grid, amount):
+        rotated_shape = self.shape
         if amount > 0:
             for _ in range(amount):
-                rotated_shape = [list(row) for row in zip(*self.shape[::-1])]
+                rotated_shape = [list(row) for row in zip(*rotated_shape[::-1])]
         elif amount < 0:
             for _ in range(amount*-1):
-                rotated_shape = [list(row) for row in list(zip(*self.shape))[::-1]]
+                rotated_shape = [list(row) for row in list(zip(*rotated_shape))[::-1]]
         if self.can_place(grid, rotated_shape, self.x, self.y, 0, 0):
             self.shape = rotated_shape
             
     def fall(self, grid, get=False):
-        check_y = self.y
-        if self.can_place(grid, self.shape, self.x, check_y, 0, 1):
-            check_y += 1
-            if not get:
-                self.y = check_y
+        next_y = self.y + 1
+        can_fall = self.can_place(
+            grid, self.shape, self.x, self.y, 0, 1
+        )
+        if get:
+            return next_y if can_fall else self.y
+        
+        if can_fall:
+            self.y = next_y
         else:
-            if not get:
-                self.y = check_y
-                self.landed = True
-        return check_y
+            self.landed = True
+            
+        return self.y
     
     def land(self, grid, get=False):
-        check_y = self.y
-        while self.can_place(grid, self.shape, self.x, check_y, 0, 1):
-            check_y += 1
-        else:
-            if not get:
-                self.hard_drop = True
-                self.y = check_y
-                self.landed = True
-        return check_y
+        landing_y = self.y
+        while self.can_place(grid, self.shape, self.x, landing_y, 0, 1):
+            landing_y += 1
+        if not get:
+            self.y = landing_y
+            self.hard_drop = True
+            self.landed = True
+        return landing_y
             
     def move(self, grid, amount):
         if self.can_place(grid, self.shape, self.x, self.y, amount, 0):
@@ -196,7 +189,7 @@ class Game:
         self.fall_timer = self.default_fall_timer
         self.fall_speed_multiplier = 1
         
-        self.grid = [[0 for column in range(10)] for row in range(20)]
+        self.grid = [[0] * 10 for _ in range(20)]
         self.cell_size = 45
         
         self.cleared_lines = 0
@@ -299,10 +292,11 @@ class Game:
         self.game_ui.labels["high_score"].update_text(f'HiScore\n[ {self.high_score} ]')
         
     def restart_game(self):
-        self.pieces.clear()
-        self.pieces.append(self.create_piece(4, 0))
-        self.pieces.append(self.create_piece(12, 2))
-        self.grid = [[0 for column in range(10)] for row in range(20)]
+        self.pieces = [
+            self.create_piece(4, 0),
+            self.create_piece(12, 2),
+        ]
+        self.grid = [[0] * 10 for _ in range(20)]
         self.cleared_lines = 0
         self.score = 0
         self.fall_speed_multiplier = 1
@@ -402,28 +396,30 @@ class Game:
             self.fall_timer -= dt * self.fall_speed_multiplier
             
             cleared_lines_now = 0
-            for y in range(len(self.grid)):
-                if all(self.grid[y]):
-                    cleared_lines_now += 1
-                    self.cleared_lines += 1
-                    self.lines_to_clear.append(y)
-                    self.clearing_lines = True
-                    self.clear_timer = 1.0
-                    for i, cell in enumerate(self.grid[y]):
-                        if not cell:
-                            color = (0, 0, 0, 255)
-                        else:
-                            color = [*cell, 255]
-                        self.particles.spawn(
-                            pygame.Vector2((i+1)*self.cell_size, (y+1)*self.cell_size),
-                            spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
-                            amount=4,
-                            size=self.cell_size/3,
-                            lifetime=120,
-                            start_speed=1,
-                            color=color
-                        )
-                        self.grid[y] = [0 for _ in range(len(self.grid[y]))]
+            for y, row in enumerate(self.grid):
+                if not all(row):
+                    continue
+                
+                cleared_lines_now += 1
+                self.cleared_lines += 1
+                self.lines_to_clear.append(y)
+                self.clearing_lines = True
+                self.clear_timer = 1.0
+                
+                for i, cell in enumerate(row):
+                    self.particles.spawn(
+                        pygame.Vector2(
+                            (i + 1)*self.cell_size,
+                            (y + 1)*self.cell_size
+                        ),
+                        spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
+                        amount=4,
+                        size=self.cell_size/3,
+                        lifetime=120,
+                        start_speed=1,
+                        color=cell
+                    )
+                self.grid[y] = [0] * len(row)
                         
             self.fall_speed_multiplier = 1 + (self.cleared_lines // 5) / 3
                         
@@ -543,16 +539,12 @@ class Game:
         #             (x, y, size, size)
         #         )
             
-    def create_piece(self, x, y, piece: int=None):
+    def create_piece(self, x, y):
         if not self.bag:
             self.bag = list(PIECES)
             random.shuffle(self.bag)
-            
-        if piece is None:
-            shape, color = self.bag[-1]
-            self.bag.pop()
-        else:
-            shape, color = self.pieces[piece]
+
+        shape, color = self.bag.pop()
         return Piece([row[:] for row in shape], color, x, y)
     
     def save(self):
