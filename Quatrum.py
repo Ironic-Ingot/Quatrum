@@ -101,7 +101,7 @@ def draw_block(screen, color, rect, alpha=255):
 class Piece:
     def __init__(self, shape: list, color, x, y, landed=False, hard_drop=False):
         self.shape = shape
-        self.color = color
+        self.color: tuple[int, int, int] = color
         self.x = x
         self.y = y
         self.landed = landed
@@ -189,7 +189,7 @@ class Game:
         self.fall_timer = self.default_fall_timer
         self.fall_speed_multiplier = 1
         
-        self.grid = [[0] * 10 for _ in range(20)]
+        self.grid: list[list[int | tuple[int, int, int]]] = [[0] * 10 for _ in range(20)]
         self.cell_size = 45
         
         self.cleared_lines = 0
@@ -198,7 +198,7 @@ class Game:
         
         self.bag = list(PIECES)
         random.shuffle(self.bag)
-        self.pieces = [self.create_piece(4, 0), self.create_piece(12, 2)]
+        self.pieces: list[Piece] = [self.create_piece(4, 0), self.create_piece(12, 2)]
         
         self.scene = 'main_menu'
         
@@ -237,31 +237,31 @@ class Game:
         self.setup_main_menu_ui(default_label_kwargs)
         
     def setup_game_over_ui(self, default_label_kwargs):
-        self.game_over_ui.create_label("title", (12*self.cell_size, 350), 'Game Over', **(default_label_kwargs | {'text_size': 120, 'background_color': (180, 50, 50)}))
-        self.game_over_ui.create_button('restart', lambda: (self.change_scene('playing'), self.restart_game()), (0, 0), 'Restart', **(default_label_kwargs | {'text_size': 90}))
+        self.game_over_ui.create_label("title", pygame.Vector2(12*self.cell_size, 350), 'Game Over', **(default_label_kwargs | {'text_size': 120, 'background_color': (180, 50, 50)}))
+        self.game_over_ui.create_button('restart', lambda: (self.change_scene('playing'), self.restart_game()), pygame.Vector2(0, 0), 'Restart', **(default_label_kwargs | {'text_size': 90}))
         self.game_over_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), color=(10, 10, 10), alpha=100)
         self.game_over_ui.buttons["restart"].set_center((WIDTH / 2, + (HEIGHT / 2) - 20))
         self.game_over_ui.labels["title"].set_center((WIDTH / 2, + (HEIGHT / 2) - 150))
     
     def setup_main_menu_ui(self, default_label_kwargs):
-        self.main_menu_ui.create_label("title", (12*self.cell_size, 350), 'Quatrum', **(default_label_kwargs | {'text_size': 160, 'text_color': (170, 60, 170), 'background_color': (90, 20, 90)}))
-        self.main_menu_ui.create_button('play', lambda: self.change_scene('playing'), (0, 0), 'Continue' if self.score > 0 else 'Start', **(default_label_kwargs | {'text_size': 100}))
-        self.main_menu_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
+        self.main_menu_ui.create_label("title", pygame.Vector2(12*self.cell_size, 350), 'Quatrum', **(default_label_kwargs | {'text_size': 160, 'text_color': (170, 60, 170), 'background_color': (90, 20, 90)}))
+        self.main_menu_ui.create_button('play', lambda: self.change_scene('playing'), pygame.Vector2(0, 0), 'Continue' if self.score > 0 else 'Start', **(default_label_kwargs | {'text_size': 100}))
+        self.main_menu_ui.create_button("quit", self.quit, pygame.Vector2(0, 0), 'Quit', **default_label_kwargs)
         self.main_menu_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), color=(10, 10, 10), alpha=255)
         self.main_menu_ui.labels["title"].set_center((WIDTH / 2, + (HEIGHT / 2) - 200))
         self.main_menu_ui.buttons["quit"].set_center((WIDTH / 2, + (HEIGHT / 2) + 120))
         self.main_menu_ui.buttons["play"].set_center((WIDTH / 2, + (HEIGHT / 2)))
         
     def setup_game_ui(self, default_label_kwargs):
-        self.game_ui.create_label("score", (12*self.cell_size, 350), f'Score\n[   ]', **default_label_kwargs)
-        self.game_ui.create_label("lines", (12*self.cell_size, 550), f'Lines\n[   ]', **default_label_kwargs)
-        self.game_ui.create_label("high_score", (12*self.cell_size, 750), f'HiScore\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("score", pygame.Vector2(12*self.cell_size, 350), f'Score\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("lines", pygame.Vector2(12*self.cell_size, 550), f'Lines\n[   ]', **default_label_kwargs)
+        self.game_ui.create_label("high_score", pygame.Vector2(12*self.cell_size, 750), f'HiScore\n[   ]', **default_label_kwargs)
 
     def setup_pause_ui(self, default_label_kwargs):
-        self.pause_ui.create_button("continue", lambda: self.change_scene('playing'), (0, 0), 'Continue', **default_label_kwargs)
-        self.pause_ui.create_button("settings", lambda: self.change_scene('settings'), (0, 0), 'Settings', **default_label_kwargs)
-        self.pause_ui.create_button("restart", self.restart_game, (0, 0), 'Restart', **default_label_kwargs)
-        self.pause_ui.create_button("quit", self.quit, (0, 0), 'Quit', **default_label_kwargs)
+        self.pause_ui.create_button("continue", lambda: self.change_scene('playing'), pygame.Vector2(0, 0), 'Continue', **default_label_kwargs)
+        self.pause_ui.create_button("settings", lambda: self.change_scene('settings'), pygame.Vector2(0, 0), 'Settings', **default_label_kwargs)
+        self.pause_ui.create_button("restart", self.restart_game, pygame.Vector2(0, 0), 'Restart', **default_label_kwargs)
+        self.pause_ui.create_button("quit", self.quit, pygame.Vector2(0, 0), 'Quit', **default_label_kwargs)
         self.pause_ui.buttons["continue"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
         self.pause_ui.buttons["settings"].set_center((WIDTH / 2, + (HEIGHT / 2) - 80))
         self.pause_ui.buttons["restart"].set_center((WIDTH / 2, -50 + (HEIGHT / 2) + 70))
@@ -270,8 +270,8 @@ class Game:
 
     def setup_settings_ui(self, default_label_kwargs):
         self.settings_ui.create_overlay("bgoverlay", pygame.Vector2(WIDTH, HEIGHT), alpha=175)
-        self.settings_ui.create_button("ghost", self.set_ghost_piece, (0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs, state=self.ghost_piece)
-        self.settings_ui.create_button("save", self.save, (0, 0), 'Save', **default_label_kwargs)
+        self.settings_ui.create_button("ghost", self.set_ghost_piece, pygame.Vector2(0, 0), 'Toggle Ghost', toggle_colors=((180, 30, 30), (30, 180, 30)), **default_label_kwargs, state=self.ghost_piece)
+        self.settings_ui.create_button("save", self.save, pygame.Vector2(0, 0), 'Save', **default_label_kwargs)
         self.settings_ui.buttons["save"].set_center((WIDTH / 2, + (HEIGHT / 2) - 50))
         self.settings_ui.buttons["ghost"].set_center((WIDTH / 2, + (HEIGHT / 2) - 180))
     #endregion
@@ -417,7 +417,7 @@ class Game:
                         size=self.cell_size/3,
                         lifetime=120,
                         start_speed=1,
-                        color=cell
+                        color=cell  # type: ignore
                     )
                 self.grid[y] = [0] * len(row)
                         
@@ -437,7 +437,7 @@ class Game:
                         self.score += 1 + self.pieces[0].hard_drop
                         
                         if self.pieces[0].hard_drop:
-                            color = [*self.pieces[0].color, 255]
+                            color: tuple[int, int, int, int] = (*self.pieces[0].color, 255)
                             self.particles.spawn(
                                 pos=pygame.Vector2((self.pieces[0].x + x + 1)*self.cell_size, (self.pieces[0].y + y + 1)*self.cell_size),
                                 spawn_range=pygame.Vector2(self.cell_size, self.cell_size),
