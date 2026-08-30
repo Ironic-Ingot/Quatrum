@@ -86,6 +86,12 @@ def draw_block(screen, color, rect, alpha=255):
     )
     pygame.draw.rect(
         target,
+        [200]*3,
+        (draw_x, draw_y, size, size),
+        width=1
+    )
+    pygame.draw.rect(
+        target,
         color,
         (
             draw_x + size - smaller,
@@ -322,8 +328,8 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            # if event.type == pygame.WINDOWRESIZED:
-                # self.adjust_to_screen()
+            if event.type == pygame.WINDOWRESIZED:
+                self.adjust_to_screen(pygame.display.get_window_size())
 
             if event.type == pygame.KEYDOWN:
                 match(event.key):
@@ -464,7 +470,7 @@ class Game:
                 self.update_labels()
 
     def draw(self):
-        self.fixed_screen.fill("black")
+        self.fixed_screen.fill((0, 10, 30))
         if self.ghost_piece:
             self.pieces[0].draw(self.cell_size, self.fixed_screen, land_y=self.pieces[0].land(self.grid, get=True), alpha=100)
         
@@ -510,11 +516,11 @@ class Game:
                         )
                     )
 
-        grid_color = [185 for _ in range(3)]
-        for column in range(COLUMNS+1):
-            pygame.draw.rect(screen, grid_color, (column*size + offset, offset, grid_line_width, ROWS*size))
-        for row in range(ROWS+1):
-            pygame.draw.rect(screen, grid_color, (offset, row*size + offset, COLUMNS*size, grid_line_width))
+        # grid_color = [185 for _ in range(3)]
+        # for column in range(COLUMNS+1):
+        #     pygame.draw.rect(screen, grid_color, (column*size + offset, offset, grid_line_width, ROWS*size))
+        # for row in range(ROWS+1):
+        #     pygame.draw.rect(screen, grid_color, (offset, row*size + offset, COLUMNS*size, grid_line_width))
             
     def draw_container(self, screen, size):
         for y in [0, 21*size]:
@@ -538,6 +544,16 @@ class Game:
         #             (150, 150, 150),
         #             (x, y, size, size)
         #         )
+   
+    def adjust_to_screen(self, new_size): # runs twice
+        print('resizing', new_size)
+        if new_size[0]/WIDTH == new_size[1]/HEIGHT:
+            pygame.display.set_mode(new_size, pygame.RESIZABLE)
+            return
+        if new_size[0]/WIDTH < new_size[1]/HEIGHT:
+            pygame.display.set_mode((new_size[0], HEIGHT * new_size[0]/WIDTH), pygame.RESIZABLE)
+        else:
+            pygame.display.set_mode((WIDTH * new_size[1]/HEIGHT, new_size[1]), pygame.RESIZABLE)
             
     def create_piece(self, x, y):
         if not self.bag:
