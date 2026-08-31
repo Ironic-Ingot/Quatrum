@@ -180,6 +180,34 @@ class Piece:
             "hard_drop": self.hard_drop,
         }
 
+class SoundManager:
+    def __init__(self) -> None:
+        self.sounds: dict[str, list[pygame.mixer.Sound]] = {
+            'land': [
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/land1.wav'),
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/land2.wav'),
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/land3.wav')
+            ],
+            'drop': [
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/drop1.wav'),
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/drop2.wav'),
+                pygame.mixer.Sound(BASE_DIR / 'GameData/Assets/Sounds/drop3.wav')
+            ]
+        }
+        self.sound_stack: list[tuple[tuple, dict]] = []
+    
+    def add(self, *args, **kwargs):
+        self.sound_stack.append((args, kwargs))
+    
+    def play(self, sound_type) -> None:
+        random.choice(self.sounds[sound_type]).play()
+        
+    def play_all(self):
+        for args, kwargs in self.sound_stack:
+            self.play(*args, **kwargs)
+        self.sound_stack.clear()
+        
+
 class Game:
     def __init__(self):
         pygame.init()
@@ -190,6 +218,8 @@ class Game:
         
         self.clock = pygame.time.Clock()
         self.running = True
+        
+        self.sound_manager = SoundManager()
         
         self.default_fall_timer = 0.6
         self.fall_timer = self.default_fall_timer
@@ -339,6 +369,7 @@ class Game:
                     match(event.key):
                         case pygame.K_SPACE:
                             self.pieces[0].land(self.grid)
+                            self.sound_manager.add('drop')
                         case pygame.K_a:
                             self.pieces[0].move(self.grid, -1)
                         case pygame.K_d:
@@ -434,6 +465,7 @@ class Game:
                 self.update_labels()
             
             if self.pieces[0].landed:
+                self.sound_manager.add('land')
                 for y, rows in enumerate(self.pieces[0].shape):
                     for x, cell in enumerate(rows):
                         if not cell:
@@ -466,6 +498,9 @@ class Game:
 
                 if self.score > self.high_score:
                     self.high_score = self.score
+                
+                self.sound_manager.play_all()
+                
                 self.save()
                 self.update_labels()
 
